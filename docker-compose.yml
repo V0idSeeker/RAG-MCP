@@ -1,0 +1,19 @@
+# docker-compose.yml  —  ChromaDB vector database
+# Run: docker compose up -d
+
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: pdf-chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+    driver: local

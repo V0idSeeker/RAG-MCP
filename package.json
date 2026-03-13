@@ -1,0 +1,23 @@
+{
+  "name": "pdf-context-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for PDF context retrieval via vector search",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "pdf-context-mcp": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "ingest": "node src/ingest.js",
+    "ui": "node ui-server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "chromadb": "^1.9.2",
+    "pdf-parse": "^1.1.1",
+    "openai": "^4.0.0",
+    "dotenv": "^16.0.0",
+    "@huggingface/transformers": "^3.0.0"
+  }
+}

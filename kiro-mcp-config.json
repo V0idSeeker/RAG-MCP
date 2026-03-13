@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pdf-context": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/pdf-mcp-server/src/index.js"],
+      "env": {
+        "CHROMA_URL": "http://localhost:8000",
+        "CHROMA_COLLECTION": "pdf_context"
+      }
+    }
+  }
+}
