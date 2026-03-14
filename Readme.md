@@ -1,5 +1,9 @@
 # DocMCP — PDF Vector Search + MCP Server
 
+<p align="center">
+  <img src="DocMCP.png" alt="DocMCP Logo" width="160" />
+</p>
+
 Ingest PDF folders into a local **ChromaDB** vector database and expose them to **Kiro IDE** (or any MCP client) as semantic search tools. Includes a web UI for ingestion, search, and collection management.
 
 ---
@@ -236,3 +240,27 @@ Set `EMBEDDING_DTYPE=fp32` in `.env`. `fp16` is not supported on most CPUs.
 node debug-upsert.js
 ```
 This sends a test embedding directly to ChromaDB and prints the full error response.
+
+---
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+
+You are free to use, study, modify, and distribute this code — including building on it or adding your own features — as long as:
+
+- You keep the same GPL-3.0 license on any derivative work
+- **Commercial use is not permitted**
+- You give appropriate credit to the original project
+
+See the full license text at: https://www.gnu.org/licenses/gpl-3.0.html
+
+---
+
+## About This Project
+
+This project was primarily built with the assistance of **AI** (Claude by Anthropic), used as a development tool throughout the design, implementation, and debugging process.
+
+That said, every line was **heavily monitored, reviewed, and tested by real developers** — the AI accelerated the work, but human judgment, domain knowledge, and hands-on testing shaped the final result. Nothing was shipped blindly.
+
+If you build on this project, we encourage the same approach: use AI as a tool, not a substitute for understanding what your code actually does.
