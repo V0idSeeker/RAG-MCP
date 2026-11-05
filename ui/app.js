@@ -172,7 +172,7 @@ function setProgress(pct) {
 async function doSearch() {
   const query   = (document.getElementById('query')?.value || '').trim();
   const col     = document.getElementById('col-select')?.value;
-  const n       = Math.max(1, parseInt(document.getElementById('topk')?.value) || 5);
+  const mode    = document.getElementById('search-mode')?.value || 'topk';
   const results = document.getElementById('results');
 
   if (!query) return;
@@ -183,14 +183,29 @@ async function doSearch() {
   results.innerHTML = '';
 
   try {
-    const r = await fetch('/api/search', {
+    let endpoint, body;
+    
+    if (mode === 'topk') {
+      const n = Math.max(1, parseInt(document.getElementById('topk')?.value) || 5);
+      endpoint = '/api/search';
+      body = { query, collection: col, n_results: n };
+    } else {
+      const minScore = Math.max(0, Math.min(1, parseFloat(document.getElementById('min-score')?.value) || 0.7));
+      endpoint = '/api/search-by-score';
+      body = { query, collection: col, min_score: minScore };
+    }
+
+    const r = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, collection: col, n_results: n })
+      body: JSON.stringify(body)
     });
     const d = await r.json();
     if (d.error) { showSearchErr(d.error, d.detail); return; }
-    renderResults(d.results || []);
+    
+    // Handle both response formats
+    const items = d.results || [];
+    renderResults(items, mode, d.total_found, d.min_score);
   } catch (e) {
     showSearchErr(e.message);
   } finally {
@@ -199,13 +214,22 @@ async function doSearch() {
   }
 }
 
-function renderResults(items) {
+function renderResults(items, mode, totalFound, minScore) {
   const results = document.getElementById('results');
   if (!items.length) {
     results.innerHTML = '<div class="empty"><div class="empty-icon">🤷</div><div class="empty-text">No results — try a different query</div></div>';
     return;
   }
-  results.innerHTML = '';
+  
+  // Add header for score mode showing total found
+  let headerHtml = '';
+  if (mode === 'score' && totalFound !== undefined) {
+    headerHtml = `<div style="padding: 8px 0; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); margin-bottom: 8px;">
+      Found ${totalFound} result${totalFound !== 1 ? 's' : ''} with score ≥ ${minScore || 0.7}
+    </div>`;
+  }
+  
+  results.innerHTML = headerHtml;
   items.forEach((it, i) => {
     const badgeCls = it.score >= .75 ? 'badge-hi' : it.score >= .5 ? 'badge-mi' : 'badge-lo';
     const card = document.createElement('div');

@@ -12,10 +12,16 @@ Ingest PDF folders into a local **ChromaDB** vector database and expose them to 
 
 ```
 DMCP2/
-├── src/
+├── src/                   JavaScript implementation
 │   ├── embedder.js        Embedding model (env-driven, local ONNX)
 │   ├── ingest.js          PDF ingestion CLI
 │   └── index.js           MCP server (stdio → Kiro)
+├── src2/                  Python implementation (same functionality)
+│   ├── embedder.py        Embedding with sentence-transformers
+│   ├── ingest.py          PDF ingestion CLI
+│   ├── server.py          MCP server
+│   ├── requirements.txt   Python dependencies
+│   └── README.md          Python-specific docs
 ├── ui/
 │   ├── index.html         Home page
 │   ├── ingest.html        Ingest page
@@ -35,10 +41,18 @@ DMCP2/
 
 ## Quick Start
 
+Choose either the **JavaScript** (src/) or **Python** (src2/) implementation — both provide identical functionality.
+
 ### 1. Prerequisites
 
+**For JavaScript version:**
 - **Node.js** 18+
 - **Docker** (for ChromaDB)
+
+**For Python version:**
+- **Python** 3.8+
+- **Docker** (for ChromaDB)
+- See `src2/README.md` for Python-specific setup
 
 ### 2. Install
 
@@ -79,6 +93,16 @@ UI_PORT=3131
 docker compose up -d
 ```
 
+ChromaDB runs at `http://localhost:9000`. Data is persisted to a local Docker volume.
+
+### 5. Start the Web UI
+
+```powershell
+npm run ui
+```
+
+Browser opens automatically at `http://localhost:3131`.
+
 ChromaDB runs at `http://localhost:8000`. Data is persisted to a local `chroma-data/` folder.
 
 ### 5. Start the Web UI
@@ -111,6 +135,7 @@ node src/ingest.js "C:\path\to\pdfs" --collection my-docs --reset
 
 Open `.kiro/settings/mcp.json` and add:
 
+**JavaScript version:**
 ```json
 {
   "mcpServers": {
@@ -126,19 +151,39 @@ Open `.kiro/settings/mcp.json` and add:
 }
 ```
 
+**Python version:**
+```json
+{
+  "mcpServers": {
+    "pdf-context-python": {
+      "command": "python",
+      "args": ["C:\\absolute\\path\\to\\DMCP2\\src2\\server.py"],
+      "env": {
+        "CHROMA_URL": "http://localhost:8000",
+        "CHROMA_COLLECTION": "ECDocs"
+      }
+    }
+  }
+}
+```
+
 Set `CHROMA_COLLECTION` to the collection you ingested into, then restart Kiro.
 
 ---
 
 ## MCP Tools
 
+Both JavaScript and Python implementations provide the same tools:
+
 | Tool | Description |
 |---|---|
-| `search_pdf_context` | Semantic search across all ingested PDFs |
+| `search_pdf_context` | Semantic search across all ingested PDFs (returns top N results) |
+| `search_pdf_context_by_score` | Semantic search that returns ALL results above a minimum score threshold |
 | `list_pdf_sources` | List every PDF that has been ingested |
 | `get_pdf_document` | Retrieve full text of a specific PDF |
 | `delete_pdf_document` | Remove a PDF's chunks from the database |
 | `list_collections` | List all ChromaDB collections |
+| `rlm_reason` | Multi-pass recursive reasoning with local LLM (requires llama.cpp server) |
 
 ### Example prompts in Kiro
 
@@ -146,7 +191,25 @@ Set `CHROMA_COLLECTION` to the collection you ingested into, then restart Kiro.
 Search the PDF context for the authentication flow
 What does the architecture doc say about the database layer?
 List all PDFs in the ECDocs collection
+
+# Using the new score-based search:
+Find all content about "API security" with similarity score above 0.8
+Get comprehensive context about "database design" with minimum relevance of 0.75
 ```
+
+### Score-Based Search Details
+
+The new `search_pdf_context_by_score` tool is particularly useful when you need comprehensive context rather than just the top few results:
+
+- **Regular search**: Returns exactly N top results (e.g., top 5 most relevant chunks)
+- **Score-based search**: Returns ALL chunks that meet your relevance criteria (could be 2 results or 200+ results)
+
+**Score ranges:**
+- `0.9-1.0`: Extremely relevant, near-exact matches
+- `0.8-0.9`: Highly relevant content
+- `0.7-0.8`: Moderately relevant (good default threshold)
+- `0.6-0.7`: Somewhat relevant
+- `<0.6`: Low relevance (usually not useful)
 
 ---
 

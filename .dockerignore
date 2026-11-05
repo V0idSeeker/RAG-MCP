@@ -1,0 +1,8 @@
+**
+!package.json
+!package-lock.json
+!ui-server.js
+!ui/
+!src/
+!src2/*.py
+!src2/requirements.txt

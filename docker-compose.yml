@@ -1,12 +1,12 @@
-# docker-compose.yml  —  ChromaDB vector database
-# Run: docker compose up -d
+# docker-compose.yml  —  ChromaDB + web UI (+ RLM MCP server via `run`)
+# Run: docker compose up -d --build
 
 services:
   chromadb:
     image: chromadb/chroma:latest
     container_name: pdf-chromadb
     ports:
-      - "8000:8000"
+      - "9000:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
@@ -14,6 +14,50 @@ services:
       - ANONYMIZED_TELEMETRY=FALSE
     restart: unless-stopped
 
+  # Web UI (ingest/search) at http://localhost:3131 — ingest folder inside container: /pdfs
+  ui:
+    build: .
+    image: dmcp2:local
+    command: ["node", "/app/ui-server.js"]
+    depends_on: [chromadb]
+    ports:
+      - "3131:3131"
+    volumes:
+      - ./pdfs:/pdfs:ro
+    environment:
+      - CHROMA_URL=http://chromadb:8000
+      - CHROMA_COLLECTION=pdf_context
+      - UI_PORT=3131
+      # ONNX copy of the same model the Python side uses, so both share one collection
+      - EMBEDDING_MODEL=Xenova/paraphrase-multilingual-MiniLM-L12-v2
+      - EMBEDDING_DEVICE=cpu
+      - EMBEDDING_DTYPE=fp32
+    restart: unless-stopped
+
+  # Python MCP server with real RLM (src2). Not started by `up`; use `run`:
+  #   docker compose run --rm rlm python ingest.py /pdfs
+  #   docker compose run --rm rlm python example_rlm_standalone.py "question" [pdf]
+  #   docker compose run --rm -i rlm          # MCP server on stdio
+  rlm:
+    image: dmcp2:local
+    profiles: ["rlm"]
+    depends_on: [chromadb]
+    volumes:
+      - ./pdfs:/pdfs:ro
+      - hf_cache:/root/.cache/huggingface
+    environment:
+      - CHROMA_URL=http://chromadb:8000
+      - CHROMA_COLLECTION=pdf_context
+      - LLAMACPP_URL=http://host.docker.internal:11434/v1
+      - LLM_MODEL=${LLM_MODEL:-qwen3:4b-16k}
+      - RLM_VERBOSE=${RLM_VERBOSE:-0}
+      - EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+      - EMBEDDING_DEVICE=cpu
+      - ANONYMIZED_TELEMETRY=FALSE
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
+  hf_cache:
   chroma_data:
     driver: local

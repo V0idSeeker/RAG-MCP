@@ -85,8 +85,19 @@
           <button class="delete-col-btn" onclick="deleteCol()" title="Delete selected collection">🗑</button>
         </div>
         <div class="ctrl">
+          <span>Mode</span>
+          <select id="search-mode" onchange="toggleSearchMode()">
+            <option value="topk">Top K</option>
+            <option value="score">Min Score</option>
+          </select>
+        </div>
+        <div class="ctrl" id="topk-ctrl">
           <span>Top K</span>
           <input type="number" id="topk" min="1" max="100" value="5" />
+        </div>
+        <div class="ctrl" id="score-ctrl" style="display: none;">
+          <span>Min Score</span>
+          <input type="number" id="min-score" min="0" max="1" step="0.01" value="0.7" />
         </div>
         <div class="searching" id="searching">
           <div class="spin"></div> Searching…
@@ -105,6 +116,21 @@
   <script>
     // Page init
     loadCols();
+
+    // Toggle between Top K and Score modes
+    function toggleSearchMode() {
+      const mode = document.getElementById('search-mode').value;
+      const topkCtrl = document.getElementById('topk-ctrl');
+      const scoreCtrl = document.getElementById('score-ctrl');
+      
+      if (mode === 'topk') {
+        topkCtrl.style.display = 'flex';
+        scoreCtrl.style.display = 'none';
+      } else {
+        topkCtrl.style.display = 'none';
+        scoreCtrl.style.display = 'flex';
+      }
+    }
   </script>
 </body>
 </html>

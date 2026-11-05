@@ -122,6 +122,32 @@ process.stdout.write(JSON.stringify({ results: out }));`;
     return;
   }
 
+  // search by score threshold
+  if (req.method === "POST" && url === "/api/search-by-score") {
+    const { query, collection, min_score = 0.7, max_results = 1000 } = await parseBody(req);
+    if (!query || !collection) return replyJSON(res, 400, { error: "query and collection required" });
+    const child = spawn("node", ["--input-type=module"], { cwd: __dirname, env: { ...process.env, CHROMA_URL } });
+    const script = `
+import { embedText } from './src/embedder.js';
+import { ChromaClient } from 'chromadb';
+const chroma = new ChromaClient({ path: '${CHROMA_URL}' });
+const col = await chroma.getCollection({ name: ${JSON.stringify(collection)} });
+const emb = await embedText(${JSON.stringify(query)}, 'query');
+const r   = await col.query({ queryEmbeddings: [emb], nResults: ${Number(max_results)}, include: ['documents','metadatas','distances'] });
+const all = r.ids[0].map((id,i) => ({ id, text: r.documents[0][i], source: r.metadatas[0][i]?.source||'unknown', chunkIndex: r.metadatas[0][i]?.chunkIndex, score: parseFloat((1-r.distances[0][i]).toFixed(4)) }));
+const filtered = all.filter(item => item.score >= ${Number(min_score)}).sort((a,b) => b.score - a.score);
+process.stdout.write(JSON.stringify({ query: ${JSON.stringify(query)}, min_score: ${Number(min_score)}, results: filtered, total_found: filtered.length }));`;
+    let out="", err="";
+    child.stdin.write(script); child.stdin.end();
+    child.stdout.on("data", d => out+=d);
+    child.stderr.on("data", d => err+=d);
+    child.on("close", code => {
+      try { replyJSON(res, 200, JSON.parse(out)); }
+      catch { replyJSON(res, 500, { error: err.split("\n").find(l=>l.includes("Error:")||l.includes("Cannot find"))||`Exit ${code}`, detail: err }); }
+    });
+    return;
+  }
+
   // static files from ui/
   let fp = path.join(UI_DIR, url === "/" ? "index.html" : url);
   if (!fs.existsSync(fp)) fp = path.join(UI_DIR, "index.html");
