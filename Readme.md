@@ -6,6 +6,55 @@
 
 Ingest PDF folders into a local **ChromaDB** vector database and expose them to **Kiro IDE** (or any MCP client) as semantic search tools. Includes a web UI for ingestion, search, and collection management.
 
+**Highlights**
+
+- **Model Context Protocol (MCP) server** in two implementations: JavaScript (`src/`) and Python (`src2/`)
+- **Fully local**: embeddings run on your machine (ONNX / sentence-transformers), and the LLM runs on Ollama or llama.cpp
+- **Recursive Language Model (RLM) reasoning** (`rlm_reason`): instead of answering only from the top-k search hits, a local LLM gets the **full documents** in a Python REPL, writes code to explore them, and calls sub-LLMs on the parts it needs. It uses the official [RLM library](https://github.com/alexzhang13/rlm).
+- **Web UI** for ingesting PDFs (with a live progress log), semantic search, and collection management
+- **One-command Docker setup**: ChromaDB, the web UI and the RLM/MCP server
+
+---
+
+## Docker Quick Start
+
+Requires **Docker** and **[Ollama](https://ollama.com)** running on the host.
+
+```powershell
+# 1. Pull a model and give it a 16k context window (the RLM system prompt does not fit in Ollama's default)
+ollama pull qwen3:4b
+"FROM qwen3:4b`nPARAMETER num_ctx 16384" | Out-File -Encoding ascii Modelfile
+ollama create qwen3:4b-16k -f Modelfile
+
+# 2. Start ChromaDB + the web UI
+docker compose up -d --build
+```
+
+1. Put your PDFs in `./pdfs`.
+2. Open **http://localhost:3131** → Ingest, enter `/pdfs` as the folder, and click Start.
+3. Ask a question with RLM (prints the REPL trajectory):
+
+```powershell
+docker compose run --rm -e RLM_VERBOSE=1 rlm python example_rlm_standalone.py "your question" some-file.pdf
+```
+
+To use another Ollama model, set `LLM_MODEL=<model>` before running the commands.
+
+**Use the MCP server from your IDE.** Point the client at the container, which talks MCP over stdio:
+
+```json
+{
+  "mcpServers": {
+    "pdf-context": {
+      "command": "docker",
+      "args": ["compose", "-f", "C:\\absolute\\path\\to\\DMCP2\\docker-compose.yml", "run", "--rm", "-i", "rlm"]
+    }
+  }
+}
+```
+
+> In Docker, the UI (Node) and the Python server both use `paraphrase-multilingual-MiniLM-L12-v2`, so they can share one collection: the UI uses the ONNX build of the model, and Python uses the sentence-transformers build.
+
 ---
 
 ## Project Structure
@@ -16,12 +65,14 @@ DMCP2/
 │   ├── embedder.js        Embedding model (env-driven, local ONNX)
 │   ├── ingest.js          PDF ingestion CLI
 │   └── index.js           MCP server (stdio → Kiro)
-├── src2/                  Python implementation (same functionality)
+├── src2/                  Python implementation (same tools + real RLM)
 │   ├── embedder.py        Embedding with sentence-transformers
 │   ├── ingest.py          PDF ingestion CLI
-│   ├── server.py          MCP server
+│   ├── server.py          MCP server (rlm_reason uses the RLM library)
+│   ├── example_rlm_standalone.py  Run rlm_reason from the command line
 │   ├── requirements.txt   Python dependencies
 │   └── README.md          Python-specific docs
+├── resources/             Early RLM prototypes (reference only)
 ├── ui/
 │   ├── index.html         Home page
 │   ├── ingest.html        Ingest page
@@ -31,7 +82,8 @@ DMCP2/
 ├── ui-server.js           Static file server + API routes
 ├── delete-collection.js   CLI collection management
 ├── debug-upsert.js        Debug tool for ChromaDB issues
-├── docker-compose.yml     ChromaDB container
+├── Dockerfile             One image: web UI (Node) + RLM/MCP server (Python)
+├── docker-compose.yml     ChromaDB + UI + rlm services
 ├── .env                   Your config (copy from .env.example)
 ├── .env.example           Config template
 └── package.json
@@ -39,9 +91,9 @@ DMCP2/
 
 ---
 
-## Quick Start
+## Manual Setup (without Docker)
 
-Choose either the **JavaScript** (src/) or **Python** (src2/) implementation — both provide identical functionality.
+Choose either the **JavaScript** (src/) or **Python** (src2/) implementation. Both provide the same search tools, but only the Python version runs real RLM reasoning (see [RLM Reasoning](#rlm-reasoning-rlm_reason)).
 
 ### 1. Prerequisites
 
@@ -50,7 +102,7 @@ Choose either the **JavaScript** (src/) or **Python** (src2/) implementation —
 - **Docker** (for ChromaDB)
 
 **For Python version:**
-- **Python** 3.8+
+- **Python** 3.11+ (required by the RLM library)
 - **Docker** (for ChromaDB)
 - See `src2/README.md` for Python-specific setup
 
@@ -66,7 +118,7 @@ Copy `.env.example` to `.env` and fill in your values:
 
 ```env
 # ChromaDB
-CHROMA_URL=http://localhost:8000
+CHROMA_URL=http://localhost:9000
 CHROMA_COLLECTION=pdf_context
 
 # Embedding model (ONNX, runs fully local)
@@ -103,16 +155,6 @@ npm run ui
 
 Browser opens automatically at `http://localhost:3131`.
 
-ChromaDB runs at `http://localhost:8000`. Data is persisted to a local `chroma-data/` folder.
-
-### 5. Start the Web UI
-
-```powershell
-node ui-server.js
-```
-
-Browser opens automatically at `http://localhost:3131`.
-
 ### 6. Ingest PDFs
 
 **Via Web UI:** Go to `/ingest`, enter your PDF folder path, select or create a collection, click Start.
@@ -143,7 +185,7 @@ Open `.kiro/settings/mcp.json` and add:
       "command": "node",
       "args": ["C:\\absolute\\path\\to\\DMCP2\\src\\index.js"],
       "env": {
-        "CHROMA_URL": "http://localhost:8000",
+        "CHROMA_URL": "http://localhost:9000",
         "CHROMA_COLLECTION": "ECDocs"
       }
     }
@@ -159,7 +201,7 @@ Open `.kiro/settings/mcp.json` and add:
       "command": "python",
       "args": ["C:\\absolute\\path\\to\\DMCP2\\src2\\server.py"],
       "env": {
-        "CHROMA_URL": "http://localhost:8000",
+        "CHROMA_URL": "http://localhost:9000",
         "CHROMA_COLLECTION": "ECDocs"
       }
     }
@@ -173,7 +215,7 @@ Set `CHROMA_COLLECTION` to the collection you ingested into, then restart Kiro.
 
 ## MCP Tools
 
-Both JavaScript and Python implementations provide the same tools:
+Both implementations provide these tools:
 
 | Tool | Description |
 |---|---|
@@ -183,7 +225,7 @@ Both JavaScript and Python implementations provide the same tools:
 | `get_pdf_document` | Retrieve full text of a specific PDF |
 | `delete_pdf_document` | Remove a PDF's chunks from the database |
 | `list_collections` | List all ChromaDB collections |
-| `rlm_reason` | Multi-pass recursive reasoning with local LLM (requires llama.cpp server) |
+| `rlm_reason` | Python: Recursive Language Model reasoning over the full PDF text. JS: an iterative retrieve → check → answer loop. Both need a local OpenAI-compatible LLM (Ollama / llama.cpp). |
 
 ### Example prompts in Kiro
 
@@ -210,6 +252,27 @@ The new `search_pdf_context_by_score` tool is particularly useful when you need 
 - `0.7-0.8`: Moderately relevant (good default threshold)
 - `0.6-0.7`: Somewhat relevant
 - `<0.6`: Low relevance (usually not useful)
+
+---
+
+## RLM Reasoning (`rlm_reason`)
+
+Plain RAG embeds the question, takes the top-k chunks, and hopes the answer is in them. That fails on questions that need the whole document, such as "list every hyperparameter", "compare section 3 with section 5", or multi-hop questions.
+
+The Python `rlm_reason` follows the [Recursive Language Models](https://github.com/alexzhang13/rlm) approach:
+
+1. It loads the **full text** of every ingested PDF (or one PDF, via `source`) into a Python REPL as `context = {filename: text}`.
+2. The root LLM sees **only the question** and metadata about the context, never the whole text.
+3. The root LLM writes Python to search and slice `context`, and calls `llm_query(...)` on the pieces it needs (the recursive sub-calls).
+4. It repeats until it sets a final answer, or until `max_iterations` (default 10) is reached.
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `LLAMACPP_URL` | `http://localhost:8080/v1` | Any OpenAI-compatible endpoint (Ollama: `http://localhost:11434/v1`) |
+| `LLM_MODEL` | `qwen-8b` (Docker: `qwen3:4b-16k`) | Model name at that endpoint |
+| `RLM_VERBOSE` | `0` | `1` prints the REPL trajectory (command-line use only, since it writes to stdout) |
+
+**Trade-offs:** RLM is slower and makes more LLM calls than search, and the answer quality depends on how well the model writes REPL code. Small models (4B–8B) work for simple lookups; use a bigger model for heavier reasoning. The REPL runs model-written code in-process with restricted builtins, which is **not** a security sandbox, so only use it with documents you trust and a local model you control.
 
 ---
 
@@ -278,7 +341,7 @@ First run downloads the model. Fully offline after that.
 **ChromaDB unreachable**
 ```powershell
 docker compose up -d
-curl http://localhost:8000/api/v2/heartbeat
+curl http://localhost:9000/api/v2/heartbeat
 ```
 
 **422 Unprocessable Entity during ingest**
