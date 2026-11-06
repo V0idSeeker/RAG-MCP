@@ -122,6 +122,29 @@ process.stdout.write(JSON.stringify({ results: out }));`;
     return;
   }
 
+  // ask: RLM reasoning over the full documents of a collection (Python src2/server.py rlm_reason)
+  if (req.method === "POST" && url === "/api/ask") {
+    const { question, collection, max_iterations = 10 } = await parseBody(req);
+    if (!question || !collection) return replyJSON(res, 400, { error: "question and collection required" });
+    const py = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+    const code = "import sys,json,asyncio\nfrom server import rlm_reason\na=json.load(sys.stdin)\nprint(json.dumps(asyncio.run(rlm_reason(**a))))";
+    // RLM_VERBOSE=0: verbose output goes to stdout and would corrupt the JSON reply
+    const child = spawn(py, ["-c", code], { cwd: path.join(__dirname, "src2"), env: { ...process.env, CHROMA_URL, RLM_VERBOSE: "0" } });
+    let out = "", err = "";
+    child.stdin.end(JSON.stringify({ query: question, collection, max_iterations: Number(max_iterations) }));
+    child.stdout.on("data", d => out += d);
+    child.stderr.on("data", d => err += d);
+    child.on("error", e => replyJSON(res, 500, { error: `Cannot start ${py}: ${e.message}` }));
+    res.on("close", () => { if (child.exitCode === null) child.kill(); }); // browser gave up → stop the LLM work
+    child.on("close", code => {
+      if (res.writableEnded) return;
+      const last = out.trim().split("\n").pop();
+      try { const r = JSON.parse(last); replyJSON(res, r.error ? 500 : 200, r); }
+      catch { replyJSON(res, 500, { error: err.trim().split("\n").pop() || `Exit ${code}`, detail: err.slice(-4000) }); }
+    });
+    return;
+  }
+
   // search by score threshold
   if (req.method === "POST" && url === "/api/search-by-score") {
     const { query, collection, min_score = 0.7, max_results = 1000 } = await parseBody(req);

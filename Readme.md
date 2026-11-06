@@ -30,8 +30,8 @@ ollama create qwen3:4b-16k -f Modelfile
 docker compose up -d --build
 ```
 
-1. Put your PDFs in `./pdfs`.
-2. Open **http://localhost:3131** → Ingest, enter `/pdfs` as the folder, and click Start.
+1. Put your PDFs in `./pdfs` (or set `PDF_DIR=K:/some/folder` to mount another folder as `/pdfs`).
+2. Open **http://localhost:3131** → Ingest, enter a container path (`/pdfs`, `/pdfs/subfolder` or `/pdfs/file.pdf`, not a Windows path), and click Start. Then use the **Ask** tab to ask questions.
 3. Ask a question with RLM (prints the REPL trajectory):
 
 ```powershell
@@ -283,6 +283,7 @@ The Python `rlm_reason` follows the [Recursive Language Models](https://github.c
 | Home | `/` | Overview, config status |
 | Ingest | `/ingest.html` | Index PDFs into a collection |
 | Search | `/search.html` | Semantic search with result cards |
+| Ask | `/ask.html` | Question → reasoned answer over a whole collection (RLM, local LLM) |
 
 **Ingest page:**
 - Shows existing collections with chunk counts — click to select

@@ -29,6 +29,12 @@ if (!folderArg) {
   process.exit(1);
 }
 
+// A Windows path (K:\...) can't exist inside the Linux container — say so instead of "not found"
+if (process.platform !== "win32" && /^[A-Za-z]:[\\/]/.test(folderArg)) {
+  console.error(`Windows path "${folderArg}" is not visible inside Docker. Put the PDF in the mounted folder (./pdfs, or PDF_DIR) and use /pdfs or /pdfs/<file>.pdf`);
+  process.exit(1);
+}
+
 const folder = path.resolve(folderArg);
 if (!fs.existsSync(folder)) {
   console.error(`Folder not found: ${folder}`);
@@ -101,6 +107,7 @@ async function extractText(pdfPath) {
 }
 
 function getPdfFiles(dir) {
+  if (fs.statSync(dir).isFile()) return dir.toLowerCase().endsWith(".pdf") ? [dir] : [];
   const results = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -160,7 +167,7 @@ async function main() {
   let dimChecked    = false;
 
   for (const pdfPath of pdfFiles) {
-    const filename = path.relative(folder, pdfPath);
+    const filename = path.relative(folder, pdfPath) || path.basename(pdfPath); // single-file ingest → relative path is ""
     console.log(`\n📄 Processing: ${filename}`);
 
     try {

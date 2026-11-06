@@ -143,6 +143,7 @@ __pycache__/
 *.pyc
 
 # Local data / editor / driver junk
-pdfs/*.pdf
+pdfs/**/*.pdf
 .vscode/
 NVIDIA Corporation/
+.playwright-mcp/

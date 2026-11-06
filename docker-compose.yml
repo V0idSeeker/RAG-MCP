@@ -3,12 +3,12 @@
 
 services:
   chromadb:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:1.0.0  # pinned: src2 chromadb client is pinned to 1.0.x
     container_name: pdf-chromadb
     ports:
       - "9000:8000"
     volumes:
-      - chroma_data:/chroma/chroma
+      - chroma_data:/data  # Chroma >= 1.0 persists to /data (was /chroma/chroma in 0.x)
     environment:
       - IS_PERSISTENT=TRUE
       - ANONYMIZED_TELEMETRY=FALSE
@@ -23,7 +23,7 @@ services:
     ports:
       - "3131:3131"
     volumes:
-      - ./pdfs:/pdfs:ro
+      - ${PDF_DIR:-./pdfs}:/pdfs:ro  # PDF_DIR=K:/some/folder to use another host folder
     environment:
       - CHROMA_URL=http://chromadb:8000
       - CHROMA_COLLECTION=pdf_context
@@ -32,6 +32,11 @@ services:
       - EMBEDDING_MODEL=Xenova/paraphrase-multilingual-MiniLM-L12-v2
       - EMBEDDING_DEVICE=cpu
       - EMBEDDING_DTYPE=fp32
+      # Ask tab → Python rlm_reason → Ollama on the host
+      - LLAMACPP_URL=http://host.docker.internal:11434/v1
+      - LLM_MODEL=${LLM_MODEL:-qwen3:4b-16k}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   # Python MCP server with real RLM (src2). Not started by `up`; use `run`:
@@ -43,7 +48,7 @@ services:
     profiles: ["rlm"]
     depends_on: [chromadb]
     volumes:
-      - ./pdfs:/pdfs:ro
+      - ${PDF_DIR:-./pdfs}:/pdfs:ro  # PDF_DIR=K:/some/folder to use another host folder
       - hf_cache:/root/.cache/huggingface
     environment:
       - CHROMA_URL=http://chromadb:8000

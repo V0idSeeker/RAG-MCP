@@ -297,3 +297,36 @@ function esc(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// ── Ask page (RLM) ───────────────────────────────────────
+async function doAsk() {
+  const question = (document.getElementById('question')?.value || '').trim();
+  const col      = document.getElementById('col-select')?.value;
+  const maxIter  = Math.max(1, parseInt(document.getElementById('max-iter')?.value) || 10);
+  const results  = document.getElementById('results');
+  if (!question || !col) return showSearchErr(!col ? 'Pick a collection first' : 'Type a question first');
+
+  const btn = document.getElementById('ask-btn'), thinking = document.getElementById('thinking'), elapsed = document.getElementById('elapsed');
+  btn.disabled = true; thinking.style.display = 'flex';
+  const t0 = Date.now();
+  const timer = setInterval(() => { elapsed.textContent = `Reasoning… ${Math.round((Date.now() - t0) / 1000)}s`; }, 1000);
+  results.innerHTML = '';
+  try {
+    const r = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, collection: col, max_iterations: maxIter }) });
+    const d = await r.json();
+    if (!r.ok || d.error) return showSearchErr(d.error || `HTTP ${r.status}`, d.detail);
+    const tokens = Object.values(d.usage?.model_usage_summaries || {}).reduce((s, m) => s + (m.total_input_tokens || 0) + (m.total_output_tokens || 0), 0);
+    results.innerHTML =
+      `<div class="answer">` +
+        `<div class="answer-head"><span>⏱ ${esc(d.execution_time_s)}s</span><span>📄 ${(d.context_chars || 0).toLocaleString()} chars of context</span>` +
+          (tokens ? `<span>🔢 ${tokens.toLocaleString()} tokens</span>` : '') + `</div>` +
+        `<div class="answer-body">${esc(d.answer || '(empty answer)')}</div>` +
+        `<div class="sources">Documents loaded: ${(d.sources_loaded || []).map(esc).join(', ')}</div>` +
+      `</div>`;
+  } catch (e) {
+    showSearchErr('Request failed', String(e));
+  } finally {
+    clearInterval(timer); btn.disabled = false; thinking.style.display = 'none'; elapsed.textContent = 'Reasoning…';
+  }
+}

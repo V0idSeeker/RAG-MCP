@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ask — DocMCP</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    main { flex: 1; display: flex; flex-direction: column; height: calc(100vh - 57px); }
+    .ask-bar { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; background: var(--panel); }
+    .ask-row { display: flex; gap: 10px; align-items: stretch; }
+    .ask-row textarea { flex: 1; font-family: var(--font); font-size: 13px; padding: 10px 14px; min-height: 64px; resize: vertical;
+      background: var(--bg); color: var(--text); border: 1px solid var(--border2); border-radius: 6px; }
+    .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .ctrl { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+    .ctrl select { width: auto; padding: 6px 10px; font-size: 11px; }
+    .ctrl input[type=number] { width: 60px; padding: 6px 8px; text-align: center; }
+    .thinking { display: none; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); margin-left: auto; }
+    .hint { font-size: 11px; color: var(--muted); line-height: 1.6; }
+    .results { flex: 1; overflow-y: auto; padding: 16px 24px; }
+    .answer { border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+    .answer-head { padding: 9px 14px; background: var(--panel); font-size: 11px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+    .answer-body { padding: 14px; font-size: 13px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+    .sources { padding: 9px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="logo" href="/">DOC<span>MCP</span></a>
+    <nav>
+      <a href="/ingest.html">Ingest</a>
+      <a href="/search.html">Search</a>
+      <a href="/ask.html" class="active">Ask</a>
+    </nav>
+  </header>
+  <main>
+    <div class="ask-bar">
+      <div class="ask-row">
+        <textarea id="question" placeholder="Ask a question about the documents in this collection…" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))doAsk()"></textarea>
+        <button class="btn btn-primary" id="ask-btn" onclick="doAsk()">Ask</button>
+      </div>
+      <div class="controls">
+        <div class="ctrl"><span>Collection</span><select id="col-select"><option value="">Loading…</option></select></div>
+        <div class="ctrl"><span>Max iterations</span><input type="number" id="max-iter" min="1" max="50" value="10" /></div>
+        <div class="thinking" id="thinking"><div class="spin"></div> <span id="elapsed">Reasoning…</span></div>
+      </div>
+      <div class="hint">Uses a Recursive Language Model (RLM): the local LLM reads the <b>full documents</b> of the collection in a Python REPL and calls itself on the relevant parts. Slower than Search — usually 1–5 minutes. Ctrl+Enter to send.</div>
+    </div>
+    <div class="results" id="results">
+      <div class="empty"><div class="empty-icon">💬</div><div class="empty-text">Pick a collection and ask a question</div></div>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>loadCols();</script>
+</body>
+</html>

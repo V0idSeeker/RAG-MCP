@@ -229,6 +229,12 @@ async def rlm_reason(
 
     context = {s: (await get_document(s, collection))["full_text"] for s in sources}
 
+    def search(query: str, k: int = 5) -> list:
+        """Vector search over the ingested chunks, callable from inside the RLM REPL."""
+        # Runs in completion()'s worker thread, which has no event loop → asyncio.run is safe.
+        hits = asyncio.run(search_context(query, n_results=k, collection=collection, source_filter=source))["results"]
+        return [{k2: h[k2] for k2 in ("source", "chunkIndex", "score", "text")} for h in hits]
+
     rlm = RLM(
         backend="openai",
         backend_kwargs={
@@ -238,11 +244,24 @@ async def rlm_reason(
         },
         max_iterations=max_iterations,
         verbose=RLM_VERBOSE,  # RLM_VERBOSE=1 prints the REPL trajectory
+        custom_tools={"search": {
+            "tool": search,
+            "description": "search(query: str, k: int = 5) -> list of {source, chunkIndex, score, text}. "
+                           "Semantic (vector) search over the ingested chunks of these documents. Use it first to "
+                           "locate relevant passages, then read around them in `context[source]` or pass them to llm_query.",
+        }},
+    )
+
+    # Small models tend to answer famous topics from memory; pin them to the documents.
+    root_prompt = (
+        f"{query}\n\nAnswer ONLY from the documents in `context` (use search() to find relevant passages). "
+        "When calling llm_query, include the relevant document text in the prompt. "
+        "Do not use outside knowledge; if the documents don't contain the answer, say so. Cite the source filename."
     )
 
     try:
         # completion() is blocking; keep the MCP event loop free.
-        result = await asyncio.to_thread(rlm.completion, context, root_prompt=query)
+        result = await asyncio.to_thread(rlm.completion, context, root_prompt=root_prompt)
     except Exception as e:
         return {"error": f"RLM reasoning failed: {e}", "query": query, "sources_loaded": sources}
 

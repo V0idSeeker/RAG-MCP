@@ -8,6 +8,8 @@ from sentence_transformers import SentenceTransformer
 
 # Configuration
 MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+# Xenova/* are ONNX ports (for the Node side) of sentence-transformers models → load the original here
+MODEL_NAME = MODEL_NAME.replace("Xenova/", "sentence-transformers/")
 DEVICE = os.getenv("EMBEDDING_DEVICE", "cpu")  # "cpu" or "cuda"
 
 # Check if model uses task-specific prefixes (EmbeddingGemma style)
